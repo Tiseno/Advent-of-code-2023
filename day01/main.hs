@@ -1,19 +1,18 @@
 import qualified Data.Char as Char
+import qualified Data.List as List
+
+wordss =
+  zip
+    ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+    (fmap Char.intToDigit [1 ..])
 
 wordDigits :: String -> String
-wordDigits xs@('o':'n':'e':_) = '1' : wordDigits (tail xs)
-wordDigits xs@('t':'w':'o':_) = '2' : wordDigits (tail xs)
-wordDigits xs@('t':'h':'r':'e':'e':_) = '3' : wordDigits (tail xs)
-wordDigits xs@('f':'o':'u':'r':_) = '4' : wordDigits (tail xs)
-wordDigits xs@('f':'i':'v':'e':_) = '5' : wordDigits (tail xs)
-wordDigits xs@('s':'i':'x':_) = '6' : wordDigits (tail xs)
-wordDigits xs@('s':'e':'v':'e':'n':_) = '7' : wordDigits (tail xs)
-wordDigits xs@('e':'i':'g':'h':'t':_) = '8' : wordDigits (tail xs)
-wordDigits xs@('n':'i':'n':'e':_) = '9' : wordDigits (tail xs)
+wordDigits [] = []
 wordDigits (x:xs)
   | Char.isDigit x = x : wordDigits xs
-wordDigits (_:xs) = wordDigits xs
-wordDigits [] = []
+wordDigits xs =
+  (snd <$> filter (\(w, _) -> w `List.isPrefixOf` xs) wordss) ++
+  wordDigits (tail xs)
 
 solution f input = sum $ (\l -> read [head l, last l]) . f <$> lines input
 
