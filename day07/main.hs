@@ -1,23 +1,28 @@
 import qualified Data.List     as List
 import qualified Data.Map      as Map
 import qualified Data.MultiSet as MultiSet
+import qualified Debug.Trace   as Debug
 
-data Hand =
-  Hand
-    { cards :: String
-    , bid   :: Int
-    }
+data Hand
+  = NormalHand
+      { cards :: String
+      , bid   :: Int
+      }
+  | JokerHand
+      { cards :: String
+      , bid   :: Int
+      }
   deriving (Eq)
 
 instance Show Hand where
-  show Hand {cards, bid} =
-    cards ++ " " ++ show bid ++ " " ++ show (toHandType cards)
+  show hand =
+    cards hand ++ " " ++ show (bid hand) ++ " " ++ show (toHandType hand)
 
-parseInput input = parseLine <$> lines input
+parseInput input h = parseLine <$> lines input
   where
     parseLine line =
       let [cards, bid] = words line
-       in Hand {cards = cards, bid = read bid}
+       in h cards (read bid)
 
 data HandType
   = HighCard
@@ -31,16 +36,28 @@ data HandType
 
 shapeToHandType :: [Int] -> HandType
 shapeToHandType [1, 1, 1, 1, 1] = HighCard
-shapeToHandType [1, 1, 1, 2]    = OnePair
-shapeToHandType [1, 2, 2]       = TwoPair
-shapeToHandType [1, 1, 3]       = Threes
-shapeToHandType [2, 3]          = FullHouse
-shapeToHandType [1, 4]          = Fours
+shapeToHandType [2, 1, 1, 1]    = OnePair
+shapeToHandType [2, 2, 1]       = TwoPair
+shapeToHandType [3, 1, 1]       = Threes
+shapeToHandType [3, 2]          = FullHouse
+shapeToHandType [4, 1]          = Fours
 shapeToHandType [5]             = Fives
 
-toHandType cards =
+toHandType NormalHand {cards} =
   shapeToHandType $
+  List.reverse $
   List.sort $ fmap snd $ MultiSet.toOccurList $ MultiSet.fromList cards
+toHandType JokerHand {cards} =
+  let cardSet = MultiSet.fromList cards
+      jokers = MultiSet.occur 'J' cardSet
+      normalCards = MultiSet.deleteAll 'J' cardSet
+      shape =
+        List.reverse $ List.sort $ snd <$> MultiSet.toOccurList normalCards
+      shape' =
+        case shape of
+          []     -> [jokers]
+          (x:xs) -> (x + jokers) : xs
+   in shapeToHandType shape'
 
 cardValues =
   Map.fromList
@@ -59,23 +76,34 @@ cardValues =
     , ('A', 14)
     ]
 
-compareFirstDifferingCard (a:cardsA) (b:cardsB)
-  | a == b = compareFirstDifferingCard cardsA cardsB
-compareFirstDifferingCard (a:cardsA) (b:cardsB) =
-  cardValues Map.! a <= cardValues Map.! b
+jokerCardValues = Map.insert 'J' 1 $ Map.delete 'J' cardValues
+
+cardValuesForHandTypes NormalHand {} NormalHand {} = cardValues
+cardValuesForHandTypes JokerHand {} JokerHand {}   = jokerCardValues
+cardValuesForHandTypes _ _                         = undefined
+
+compareFirstDifferingCard cardValues a b =
+  uncurry (<=) $
+  head $
+  filter (uncurry (/=)) $
+  zip (fmap (cardValues Map.!) a) (fmap (cardValues Map.!) b)
 
 instance Ord Hand where
-  Hand {cards = cardsA} <= Hand {cards = cardsB} =
-    let handTypeA = toHandType cardsA
-        handTypeB = toHandType cardsB
+  handA <= handB =
+    let handTypeA = toHandType handA
+        handTypeB = toHandType handB
      in if handTypeA == handTypeB
-          then compareFirstDifferingCard cardsA cardsB
+          then compareFirstDifferingCard
+                 (cardValuesForHandTypes handA handB)
+                 (cards handA)
+                 (cards handB)
           else handTypeA <= handTypeB
 
-part1 input = sum $ fmap (uncurry (*)) <$> zip [1 ..] $ bid <$> List.sort input
+solve hands = sum $ fmap (uncurry (*)) <$> zip [1 ..] $ bid <$> List.sort hands
 
 main = do
   input <- readFile "input.txt"
-  let parsed = parseInput input
   putStrLn "Part 1"
-  print $ part1 parsed
+  print $ solve $ parseInput input NormalHand
+  putStrLn "Part 2"
+  print $ solve $ parseInput input JokerHand
