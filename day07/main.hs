@@ -16,27 +16,7 @@ parseInput input = parseLine <$> lines input
       let [cards, bid] = words line
        in Hand cards (read bid)
 
-data HandType
-  = HighCard
-  | OnePair
-  | TwoPair
-  | Threes
-  | FullHouse
-  | Fours
-  | Fives
-  deriving (Eq, Ord, Show)
-
-shapeToHandType :: [Int] -> HandType
-shapeToHandType [1, 1, 1, 1, 1] = HighCard
-shapeToHandType [2, 1, 1, 1]    = OnePair
-shapeToHandType [2, 2, 1]       = TwoPair
-shapeToHandType [3, 1, 1]       = Threes
-shapeToHandType [3, 2]          = FullHouse
-shapeToHandType [4, 1]          = Fours
-shapeToHandType [5]             = Fives
-
-toHandTypeFromNormalCards cards =
-  shapeToHandType $
+toHandShapeFromNormalCards cards =
   List.reverse $
   List.sort $ fmap snd $ MultiSet.toOccurList $ MultiSet.fromList cards
 
@@ -44,34 +24,29 @@ normalCardValues =
   Map.fromList $
   zip ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'] [2 ..]
 
-firstDifferingCards a b = head $ filter (uncurry (/=)) $ zip a b
+firstDiffering a b = head $ filter (uncurry (/=)) $ zip a b
 
-handCompare (toHandType, cardValues) Hand {cards = cardsA} Hand {cards = cardsB} =
-  let handTypeA = toHandType cardsA
-      handTypeB = toHandType cardsB
-   in if handTypeA == handTypeB
-        then uncurry compare $
-             TupleExtra.both (cardValues Map.!) $
-             firstDifferingCards cardsA cardsB
-        else compare handTypeA handTypeB
+handCompare (toHandShape, cardValues) Hand {cards = cardsA} Hand {cards = cardsB} =
+  let handShapes = (toHandShape cardsA, toHandShape cardsB)
+      cardsOrShapes =
+        if uncurry (==) handShapes
+          then TupleExtra.both (fmap (cardValues Map.!)) (cardsA, cardsB)
+          else handShapes
+   in uncurry compare $ uncurry firstDiffering cardsOrShapes
 
-toHandTypeFromJokerCards cards =
+toHandShapeFromJokerCards cards =
   let cardSet = MultiSet.fromList cards
       jokers = MultiSet.occur 'J' cardSet
       normalCards = MultiSet.deleteAll 'J' cardSet
-      shape =
-        List.reverse $ List.sort $ snd <$> MultiSet.toOccurList normalCards
-      shape' =
-        case shape of
-          []     -> [jokers]
-          (x:xs) -> (x + jokers) : xs
-   in shapeToHandType shape'
+   in case List.reverse $ List.sort $ snd <$> MultiSet.toOccurList normalCards of
+        []     -> [jokers]
+        (x:xs) -> (x + jokers) : xs
 
 jokerCardValues = Map.insert 'J' 1 $ Map.delete 'J' normalCardValues
 
-normalRules = (toHandTypeFromNormalCards, normalCardValues)
+normalRules = (toHandShapeFromNormalCards, normalCardValues)
 
-jokerRules = (toHandTypeFromJokerCards, jokerCardValues)
+jokerRules = (toHandShapeFromJokerCards, jokerCardValues)
 
 solve rules hands =
   sum $
