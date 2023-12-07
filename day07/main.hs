@@ -1,28 +1,20 @@
-import qualified Data.List     as List
-import qualified Data.Map      as Map
-import qualified Data.MultiSet as MultiSet
-import qualified Debug.Trace   as Debug
+import qualified Data.List        as List
+import qualified Data.Map         as Map
+import qualified Data.MultiSet    as MultiSet
+import qualified Data.Tuple.Extra as TupleExtra
 
-data Hand
-  = NormalHand
-      { cards :: String
-      , bid   :: Int
-      }
-  | JokerHand
-      { cards :: String
-      , bid   :: Int
-      }
-  deriving (Eq)
+data Hand =
+  Hand
+    { cards :: String
+    , bid   :: Int
+    }
+  deriving (Eq, Show)
 
-instance Show Hand where
-  show hand =
-    cards hand ++ " " ++ show (bid hand) ++ " " ++ show (toHandType hand)
-
-parseInput input h = parseLine <$> lines input
+parseInput input = parseLine <$> lines input
   where
     parseLine line =
       let [cards, bid] = words line
-       in h cards (read bid)
+       in Hand cards (read bid)
 
 data HandType
   = HighCard
@@ -32,7 +24,7 @@ data HandType
   | FullHouse
   | Fours
   | Fives
-  deriving (Enum, Eq, Ord, Show)
+  deriving (Eq, Ord, Show)
 
 shapeToHandType :: [Int] -> HandType
 shapeToHandType [1, 1, 1, 1, 1] = HighCard
@@ -43,11 +35,27 @@ shapeToHandType [3, 2]          = FullHouse
 shapeToHandType [4, 1]          = Fours
 shapeToHandType [5]             = Fives
 
-toHandType NormalHand {cards} =
+toHandTypeFromNormalCards cards =
   shapeToHandType $
   List.reverse $
   List.sort $ fmap snd $ MultiSet.toOccurList $ MultiSet.fromList cards
-toHandType JokerHand {cards} =
+
+normalCardValues =
+  Map.fromList $
+  zip ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'] [2 ..]
+
+firstDifferingCards a b = head $ filter (uncurry (/=)) $ zip a b
+
+handCompare (toHandType, cardValues) Hand {cards = cardsA} Hand {cards = cardsB} =
+  let handTypeA = toHandType cardsA
+      handTypeB = toHandType cardsB
+   in if handTypeA == handTypeB
+        then uncurry compare $
+             TupleExtra.both (cardValues Map.!) $
+             firstDifferingCards cardsA cardsB
+        else compare handTypeA handTypeB
+
+toHandTypeFromJokerCards cards =
   let cardSet = MultiSet.fromList cards
       jokers = MultiSet.occur 'J' cardSet
       normalCards = MultiSet.deleteAll 'J' cardSet
@@ -59,51 +67,21 @@ toHandType JokerHand {cards} =
           (x:xs) -> (x + jokers) : xs
    in shapeToHandType shape'
 
-cardValues =
-  Map.fromList
-    [ ('2', 2)
-    , ('3', 3)
-    , ('4', 4)
-    , ('5', 5)
-    , ('6', 6)
-    , ('7', 7)
-    , ('8', 8)
-    , ('9', 9)
-    , ('T', 10)
-    , ('J', 11)
-    , ('Q', 12)
-    , ('K', 13)
-    , ('A', 14)
-    ]
+jokerCardValues = Map.insert 'J' 1 $ Map.delete 'J' normalCardValues
 
-jokerCardValues = Map.insert 'J' 1 $ Map.delete 'J' cardValues
+normalRules = (toHandTypeFromNormalCards, normalCardValues)
 
-cardValuesForHandTypes NormalHand {} NormalHand {} = cardValues
-cardValuesForHandTypes JokerHand {} JokerHand {}   = jokerCardValues
-cardValuesForHandTypes _ _                         = undefined
+jokerRules = (toHandTypeFromJokerCards, jokerCardValues)
 
-compareFirstDifferingCard cardValues a b =
-  uncurry (<=) $
-  head $
-  filter (uncurry (/=)) $
-  zip (fmap (cardValues Map.!) a) (fmap (cardValues Map.!) b)
-
-instance Ord Hand where
-  handA <= handB =
-    let handTypeA = toHandType handA
-        handTypeB = toHandType handB
-     in if handTypeA == handTypeB
-          then compareFirstDifferingCard
-                 (cardValuesForHandTypes handA handB)
-                 (cards handA)
-                 (cards handB)
-          else handTypeA <= handTypeB
-
-solve hands = sum $ fmap (uncurry (*)) <$> zip [1 ..] $ bid <$> List.sort hands
+solve rules hands =
+  sum $
+  fmap (uncurry (*)) $
+  zip [1 ..] $ bid <$> List.sortBy (handCompare rules) hands
 
 main = do
   input <- readFile "input.txt"
+  let hands = parseInput input
   putStrLn "Part 1"
-  print $ solve $ parseInput input NormalHand
+  print $ solve normalRules hands
   putStrLn "Part 2"
-  print $ solve $ parseInput input JokerHand
+  print $ solve jokerRules hands
