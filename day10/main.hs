@@ -27,8 +27,8 @@ parseInput input =
               else map
        in (s', map')
 
-part1 ((s@(x, y), map) :: ((Int, Int), Map.Map (Int, Int) [(Int, Int)])) =
-  snd (walk (Set.fromList [n0]) 2 n1) `div` 2
+findPath ((s@(x, y), map) :: ((Int, Int), Map.Map (Int, Int) [(Int, Int)])) =
+  walk (Set.fromList [n0]) 2 n1
   where
     neighbors = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
     neighborsPipes =
@@ -36,12 +36,12 @@ part1 ((s@(x, y), map) :: ((Int, Int), Map.Map (Int, Int) [(Int, Int)])) =
     n0 = fst $ head $ filter (\(n, cs) -> s `elem` cs) neighborsPipes
     n1 = head $ filter (s /=) $ map Map.! n0
     walk visited count current
-      | current == s = (current, count)
-      | current `Set.member` visited = (current, count)
+      | current == s = (Set.insert s visited, count)
+      | current `Set.member` visited = (visited, count)
       | otherwise =
         let unvisited = filter (`Set.notMember` visited) $ map Map.! current
          in if null unvisited
-              then (current, count)
+              then (visited, count)
               else walk
                      (Set.insert current visited)
                      (count + 1)
@@ -93,9 +93,8 @@ downs = "7|F"
 
 ups = "J|L"
 
--- I missed the part about junk lying around so this version does not work
-floodFill (sx, sy) width height map0 =
-  spacesInMap - length (fill (OrdSet [(0, 0)]) Set.empty Set.empty)
+floodFill (sx, sy) width height map0 path =
+  length (fill (OrdSet [(sx - 1, sy - 1)]) Set.empty Set.empty)
   where
     [u, l, r, d] =
       fmap
@@ -124,10 +123,7 @@ floodFill (sx, sy) width height map0 =
             else pa `elem` downs && pb `elem` ups
         _ -> False
     insideExtendedBounds (x, y) = x >= 0 && y >= 0 && x <= width && y <= height
-    isSpace (x, y) =
-      case Map.lookup (x, y) map of
-        Just '.' -> True
-        _        -> False
+    isNotOfPath n = n `Set.notMember` path
     fill (OrdSet []) visited spaces = spaces
     fill (OrdSet (u@(x, y):us)) visited spaces =
       let visited' = Set.insert u visited
@@ -142,18 +138,18 @@ floodFill (sx, sy) width height map0 =
               , ((x, y - 1), not (isConnected (x - 1, y - 1) (x, y - 1)))
               ]
           neighborSpaces =
-            filter isSpace [(x - 1, y - 1), (x, y - 1), (x - 1, y), (x, y)]
+            filter isNotOfPath [(x - 1, y - 1), (x, y - 1), (x - 1, y), (x, y)]
           spaces' = foldl (flip Set.insert) spaces neighborSpaces
           unvisited' = foldl (flip osInsert) (OrdSet us) unvisitedNeighbors
        in fill unvisited' visited' spaces'
 
 main = do
   input <- readFile "input.txt"
-  input <- readFile "input.example.5.txt"
-  let parsed = parseInput input
   putStrLn "Part 1"
-  print $ part1 parsed
+  let parsed = parseInput input
+  let (path, pathLength) = findPath parsed
+  print $ pathLength `div` 2
   putStrLn "Part 2"
   let (s, map, w, h) = parseInput2 input
-  let result = floodFill s w h map
+  let result = floodFill s w h map path
   print result
