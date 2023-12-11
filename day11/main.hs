@@ -21,17 +21,41 @@ positions expanded = foldl f [] withY
           galaxyPositions = fmap (, y) galaxyXs
        in acc ++ galaxyPositions
 
-part1 galaxyPositions = sum $ fmap (sum . snd) $ allDistances galaxyPositions
+part1 galaxyPositions = sum $ sum . snd <$> allDistances galaxyPositions
   where
     allDistances [_]    = []
     allDistances (g:gs) = (g, fmap (distance g) gs) : allDistances gs
-    sumDistances (g:gs) = foldl (\ss b -> ss + distance g b) 0 gs
     distance a@(x, y) b@(x', y') = abs (x' - x) + abs (y' - y)
+
+findExpansions input = (xs, ys)
+  where
+    positionsOfAllDots i =
+      fmap fst $ filter (\(y, l) -> all (== '.') l) $ zip [0 :: Int ..] i
+    xs = positionsOfAllDots $ List.transpose $ lines input
+    ys = positionsOfAllDots $ lines input
+
+part2 expansionFactor (xExpansions, yExpansions) galaxyPositions =
+  sum $ sum . snd <$> allDistances galaxyPositions
+  where
+    allDistances [_]    = []
+    allDistances (g:gs) = (g, fmap (distance g) gs) : allDistances gs
+    distance a@(x, y) b@(x', y') =
+      let traversedXExpansions =
+            filter (\e -> min x x' < e && e < max x x') xExpansions
+          traversedYExpansions =
+            filter (\e -> min y y' < e && e < max y y') yExpansions
+          expandedDistance =
+            (expansionFactor - 1) *
+            (length traversedXExpansions + length traversedYExpansions)
+       in expandedDistance + abs (x' - x) + abs (y' - y)
 
 main = do
   input <- readFile "input.txt"
   putStrLn "Part 1"
   let expanded = expand input
-  putStrLn expanded
-  let galaxyPositions = positions expanded
-  print $ part1 galaxyPositions
+  let expandedGalaxyPositions = positions expanded
+  print $ part1 expandedGalaxyPositions
+  putStrLn "Part 1"
+  let expansionPositions = findExpansions input
+  let galaxyPositions = positions input
+  print $ part2 1000000 expansionPositions galaxyPositions
