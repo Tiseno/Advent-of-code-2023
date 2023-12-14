@@ -2,9 +2,6 @@ import qualified Data.Hashable   as Hashable
 import qualified Data.List       as List
 import qualified Data.List.Split as Split
 import qualified Data.Map        as Map
-import qualified Data.MultiSet   as MultiSet
-
-parseInput = lines
 
 pushNorth platform = List.transpose $ pushWest $ List.transpose platform
 
@@ -14,10 +11,7 @@ pushWest = fmap rowPushWest
       concatMap pushWestInSubRow (Split.split (Split.whenElt (== '#')) row)
     pushWestInSubRow [] = []
     pushWestInSubRow ['#'] = ['#']
-    pushWestInSubRow row =
-      let counts = MultiSet.fromList row
-       in replicate (MultiSet.occur 'O' counts) 'O' ++
-          replicate (MultiSet.occur '.' counts) '.'
+    pushWestInSubRow row = reverse $ List.sort row
 
 totalLoad platform =
   sum $
@@ -76,7 +70,7 @@ part2 platform0 =
 
 main = do
   input <- readFile "input.txt"
-  let parsed = parseInput input
+  let parsed = lines input
   putStrLn "Part 1"
   print $ part1 parsed
   putStrLn "Part 2"
