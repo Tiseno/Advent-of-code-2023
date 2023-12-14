@@ -2,7 +2,7 @@ default:
 	runhaskell main.hs
 
 faster:
-	ghc main.hs
+	ghc -O3 main.hs
 	rm main.o
 	rm main.hi
 	./main
