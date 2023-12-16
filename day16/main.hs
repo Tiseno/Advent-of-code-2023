@@ -1,6 +1,12 @@
-import qualified Data.Set as Set
+import qualified Data.Array as Array
+import qualified Data.Set   as Set
 
-parseInput = lines
+parseInput input =
+  Array.array
+    ((0, 0), (pred $ length (head l), pred $ length l))
+    [((x, y), e) | (y, row) <- zip [0 ..] l, (x, e) <- zip [0 ..] row]
+  where
+    l = lines input
 
 data Dir
   = L
@@ -9,23 +15,21 @@ data Dir
   | D
   deriving (Eq, Show, Ord)
 
-part1 (mirrorMap :: [[Char]]) start =
+part1 mirrorMap start =
   length $
   Set.toList $ Set.fromList $ fmap snd $ Set.toList $ energize Set.empty start
   where
-    width = length $ head mirrorMap
-    height = length mirrorMap
-    go L (x, y) = (L, (x - 1, y))
-    go R (x, y) = (R, (x + 1, y))
-    go U (x, y) = (U, (x, y - 1))
-    go D (x, y) = (D, (x, y + 1))
-    energize energized0 current@(dir :: Dir, pos@(x :: Int, y :: Int))
-      | x < 0 ||
-          x >= width || y < 0 || y >= height || Set.member current energized0 =
+    bounds = Array.bounds mirrorMap
+    go L (x, y) = (L, (pred x, y))
+    go R (x, y) = (R, (succ x, y))
+    go U (x, y) = (U, (x, pred y))
+    go D (x, y) = (D, (x, succ y))
+    energize energized0 (dir, pos)
+      | not (Array.inRange bounds pos) || Set.member (dir, pos) energized0 =
         energized0
       | otherwise =
-        let energized' = Set.insert current energized0
-         in case (dir, mirrorMap !! y !! x) of
+        let energized' = Set.insert (dir, pos) energized0
+         in case (dir, mirrorMap Array.! pos) of
               (d, '|')
                 | d `elem` [L, R] ->
                   energize (energize energized' (go U pos)) (go D pos)
@@ -44,12 +48,11 @@ part1 (mirrorMap :: [[Char]]) start =
 
 part2 mirrorMap = maximum $ part1 mirrorMap <$> starts
   where
-    width = length $ head mirrorMap
-    height = length mirrorMap
-    startsLeft = [(R, (0, y)) | y <- [0 .. height - 1]]
-    startsRight = [(L, (width - 1, y)) | y <- [0 .. height - 1]]
-    startsTop = [(D, (x, 0)) | x <- [0 .. width - 1]]
-    startsBot = [(U, (x, height - 1)) | x <- [0 .. width - 1]]
+    (_, (xMax, yMax)) = Array.bounds mirrorMap
+    startsLeft = [(R, (0, y)) | y <- [0 .. yMax]]
+    startsRight = [(L, (xMax, y)) | y <- [0 .. yMax]]
+    startsTop = [(D, (x, 0)) | x <- [0 .. xMax]]
+    startsBot = [(U, (x, yMax)) | x <- [0 .. xMax]]
     starts = startsLeft ++ startsRight ++ startsTop ++ startsBot
 
 main = do
