@@ -1,4 +1,6 @@
-import qualified Data.Set as Set
+import qualified Data.Set    as Set
+import qualified Debug.Trace as Debug
+import qualified Numeric
 
 data Dir
   = L
@@ -10,7 +12,7 @@ data Dir
 data DigInstruction =
   DI
     { dir   :: Dir
-    , len   :: Int
+    , len   :: Integer
     , color :: String
     }
   deriving (Read, Eq, Ord)
@@ -18,7 +20,7 @@ data DigInstruction =
 instance Show DigInstruction where
   show DI {dir, len, color} = show dir ++ " " ++ show len ++ " " ++ color
 
-parseInput input = parseLine <$> lines input
+parseInput1 input = parseLine <$> lines input
   where
     parseLine line =
       let [dir, len, color] = words line
@@ -31,7 +33,7 @@ go pos dir len = go' pos dir <$> [1 .. len]
     go' (x, y) U len = (x, y - len)
     go' (x, y) D len = (x, y + len)
 
-type Pos = (Int, Int)
+type Pos = (Integer, Integer)
 
 part1 (digPlan :: [DigInstruction]) =
   length trenches +
@@ -43,7 +45,7 @@ part1 (digPlan :: [DigInstruction]) =
        (Set.fromList [interiorStart2]))
   where
     start = (0, 0)
-    dig [] (pos :: (Int, Int)) = []
+    dig [] (pos :: (Integer, Integer)) = []
     dig (DI {dir, len}:instrs) pos =
       let newTrench = go pos dir len
        in newTrench ++ dig instrs (last newTrench)
@@ -71,8 +73,33 @@ part1 (digPlan :: [DigInstruction]) =
                 (Set.insert p2 visited2)
                 (foldl (flip Set.insert) pending2' reachable2)
 
+convertToBigPlan digPlan = convertToRealBigDigInstr <$> digPlan
+  where
+    hexDir '0' = R
+    hexDir '1' = D
+    hexDir '2' = L
+    hexDir '3' = U
+    convertToRealBigDigInstr DI {color} =
+      let dir = hexDir $ color !! 7
+          lens = Numeric.readHex $ drop 1 $ take 6 $ tail color
+       in DI dir (fst $ head lens) color
+
+part2 (bigPlan :: [DigInstruction]) = snd shapeArea + pathLength `div` 2 + 1
+  where
+    pathLength = sum $ len <$> bigPlan
+    shapeArea = foldl sumAreas (0, 0) bigPlan
+    sumAreas (y :: Integer, area) DI {dir, len} =
+      case dir of
+        L -> (y, area - y * len)
+        R -> (y, area + y * len)
+        U -> (y + len, area)
+        D -> (y - len, area)
+
 main = do
   input <- readFile "input.txt"
-  let digPlan = parseInput input
   putStrLn "Part 1"
+  let digPlan = parseInput1 input
   print $ part1 digPlan
+  putStrLn "Part 2"
+  let bigPlan = convertToBigPlan digPlan
+  print $ part2 bigPlan
