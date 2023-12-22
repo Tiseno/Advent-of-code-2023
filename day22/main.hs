@@ -2,6 +2,7 @@ import qualified Data.List       as List
 import qualified Data.List.Split as Split
 import qualified Data.Map        as Map
 import qualified Data.Ord        as Ord
+import qualified Data.Set        as Set
 
 newtype Id =
   Id Int
@@ -57,11 +58,11 @@ parseBlocks input = snd $ blocks $ lines input
 type Graph a = Map.Map a ([a], [a])
 
 settleBlocksIntoGraph (blocks :: [(Pos, Block)]) =
-  foldl settleBlock (0, [], Map.empty) sortedByZ
+  snd $ foldl settleBlock ([], Map.empty) sortedByZ
   where
     sortedByZ = List.sortBy (Ord.comparing (posZ . fst)) blocks
     zTopOf (p, b) = posZ p + sizeH (size b)
-    xyOverlaps i a@(aP, aB) b@(bP, bB) =
+    xyOverlaps a@(aP, aB) b@(bP, bB) =
       let aLeft = posX aP
           aRight = posX aP + sizeW (size aB) - 1
           aBot = posY aP
@@ -77,8 +78,8 @@ settleBlocksIntoGraph (blocks :: [(Pos, Block)]) =
     supportsUpdate (a :: String) (graph :: Graph String) (b :: String) =
       let (supports, supportedBy) = graph Map.! b
        in Map.insert b (a : supports, supportedBy) graph
-    settleBlock (count, settled, graph) (pos, block) =
-      let settledOverlapping = filter (xyOverlaps count (pos, block)) settled
+    settleBlock (settled, graph) (pos, block) =
+      let settledOverlapping = filter (xyOverlaps (pos, block)) settled
           highestOverlapping =
             filter (higherThan settledOverlapping) settledOverlapping
           newZ =
@@ -88,8 +89,7 @@ settleBlocksIntoGraph (blocks :: [(Pos, Block)]) =
           newPos = pos {posZ = newZ}
           supportedBy = bId . snd <$> highestOverlapping
           graph' = foldl (supportsUpdate (bId block)) graph supportedBy
-       in ( count + 1
-          , settled ++ [(newPos, block)]
+       in ( settled ++ [(newPos, block)]
           , Map.insert (bId block) ([], supportedBy) graph')
 
 part1 (graph :: Graph String) =
@@ -98,9 +98,22 @@ part1 (graph :: Graph String) =
     supportedByMultiple n = length (snd $ graph Map.! n) > 1
     canBeDisintegrated n = all supportedByMultiple $ fst $ graph Map.! n
 
+part2 (graph :: Graph String) = sum $ effectOfDisintegration <$> Map.keys graph
+  where
+    hasNoSupport fallen n =
+      not $ any (`Set.notMember` fallen) (snd $ graph Map.! n)
+    effectOfDisintegration n = length (letFall Set.empty n) - 1
+    letFall fallen0 n =
+      let fallen1 = Set.insert n fallen0
+          supports = fst $ graph Map.! n
+          willFall = filter (hasNoSupport fallen1) supports
+       in foldl letFall fallen1 willFall
+
 main = do
   input <- readFile "input.txt"
   let parsed = parseBlocks input
+  let graph = settleBlocksIntoGraph parsed
   putStrLn "Part 1"
-  let (_, _, g) = settleBlocksIntoGraph parsed
-  print $ part1 g
+  print $ part1 graph
+  putStrLn "Part 2"
+  print $ part2 graph

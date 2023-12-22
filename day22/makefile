@@ -1,4 +1,6 @@
-default:
+default: faster
+
+run:
 	runhaskell main.hs
 
 faster:
