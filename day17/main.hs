@@ -66,7 +66,7 @@ go (x, y) L = (x - 1, y)
 go (x, y) U = (x, y - 1)
 go (x, y) D = (x, y + 1)
 
-part1 (cityMap :: Array.Array (Int, Int) Int) =
+solve minSteps maxSteps (cityMap :: Array.Array (Int, Int) Int) =
   snd $
   List.minimumBy (Ord.comparing snd) $
   filter (\((pos, _), _) -> pos == target) $ Map.toList minimumDistances
@@ -80,12 +80,14 @@ part1 (cityMap :: Array.Array (Int, Int) Int) =
       let newPos = go pos dir
        in ( (newPos, dir)
           , currentDist + Maybe.fromMaybe 0 (arrayLookup cityMap newPos))
-    go3 pos currentDist dir =
-      drop 1 $ take 4 $ iterate goWithDistance ((pos, dir), currentDist)
+    goSteps pos currentDist dir =
+      drop minSteps $
+      take (1 + maxSteps) $ iterate goWithDistance ((pos, dir), currentDist)
     reachableNeighbors count (visited :: Visited) currentDist ((currentPos, currentDir) :: Node) =
       let allowedDirections =
             filter (`notElem` [currentDir, opposite currentDir]) [R, L, D, U]
-          threeSteps = concatMap (go3 currentPos currentDist) allowedDirections
+          threeSteps =
+            concatMap (goSteps currentPos currentDist) allowedDirections
           notVisitedAndInBounds =
             filter
               (\(n@(pos, _), _) ->
@@ -110,4 +112,6 @@ main = do
   input <- readFile "input.txt"
   let cityMap = parseInput input
   putStrLn "Part 1"
-  print $ part1 cityMap
+  print $ solve 1 3 cityMap
+  putStrLn "Part 2"
+  print $ solve 4 10 cityMap
