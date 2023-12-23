@@ -1,13 +1,9 @@
-import qualified Data.Array    as Array
-import qualified Data.Foldable as Foldable
-import qualified Data.List     as List
-import qualified Data.Map      as Map
-import qualified Data.Maybe    as Maybe
-import qualified Data.Ord      as Ord
-import qualified Data.Set      as Set
-import qualified Debug.Trace   as Debug
+import qualified Data.Array as Array
+import qualified Data.Map   as Map
+import qualified Data.Maybe as Maybe
+import qualified Data.Set   as Set
 
-parseInput input =
+parseCityMap input =
   (\c -> read [c] :: Int) <$>
   Array.array
     ((0, 0), (pred $ length (head l), pred $ length l))
@@ -38,9 +34,7 @@ type Visited = Set.Set Node
 
 type Distances = Map.Map Node Int
 
-type Tentative = Map.Map Node Int
-
-type Tentative2 = [(Node, Int)]
+type Tentative = [(Node, Int)]
 
 qSetInsert [] (k, v) = [(k, v)]
 qSetInsert ((k0, v0):stack) (k, v)
@@ -66,16 +60,15 @@ go (x, y) L = (x - 1, y)
 go (x, y) U = (x, y - 1)
 go (x, y) D = (x, y + 1)
 
-solve minSteps maxSteps (cityMap :: Array.Array (Int, Int) Int) =
-  snd $
-  List.minimumBy (Ord.comparing snd) $
-  filter (\((pos, _), _) -> pos == target) $ Map.toList minimumDistances
+leastHeatLoss minSteps maxSteps (cityMap :: Array.Array (Int, Int) Int) =
+  minimum $
+  snd <$> filter (\((pos, _), _) -> pos == target) (Map.toList minimumDistances)
   where
-    minimumDistances =
-      dijkstra 0 Map.empty Set.empty [(((0, 0), NoDirection) :: Node, 0)]
-    target = snd $ Array.bounds cityMap
-    bigNumber = 999999999
+    start = (0, 0)
     bounds = Array.bounds cityMap
+    target = snd bounds
+    minimumDistances = dijkstra Map.empty Set.empty [((start, NoDirection), 0)]
+    bigNumber = 999999999
     goWithDistance ((pos, dir), currentDist) =
       let newPos = go pos dir
        in ( (newPos, dir)
@@ -83,35 +76,29 @@ solve minSteps maxSteps (cityMap :: Array.Array (Int, Int) Int) =
     goSteps pos currentDist dir =
       drop minSteps $
       take (1 + maxSteps) $ iterate goWithDistance ((pos, dir), currentDist)
-    reachableNeighbors count (visited :: Visited) currentDist ((currentPos, currentDir) :: Node) =
+    reachableNeighbors (visited :: Visited) currentDist ((currentPos, currentDir) :: Node) =
       let allowedDirections =
             filter (`notElem` [currentDir, opposite currentDir]) [R, L, D, U]
-          threeSteps =
-            concatMap (goSteps currentPos currentDist) allowedDirections
-          notVisitedAndInBounds =
-            filter
-              (\(n@(pos, _), _) ->
-                 n `Set.notMember` visited && Array.inRange bounds pos)
-              threeSteps
-       in notVisitedAndInBounds
-    insertSmaller map (k, dist) =
-      let prevDist = Maybe.fromMaybe bigNumber $ Map.lookup k map
-       in Map.insert k (min dist prevDist) map
-    dijkstra count (distances0 :: Distances) (visited0 :: Visited) (tentative0 :: Tentative2) =
-      case tentative0 of
-        [] -> distances0
-        (currentNode, currentDist):tentative1 ->
-          let distances1 = insertSmaller distances0 (currentNode, currentDist)
-              visited1 = Set.insert currentNode visited0
-              newTentativeNeighbors =
-                reachableNeighbors count visited1 currentDist currentNode
-              tentative2 = foldl qSetInsert tentative1 newTentativeNeighbors
-           in dijkstra (count + 1) distances1 visited1 tentative2
+       in filter
+            (\(n@(pos, _), _) ->
+               n `Set.notMember` visited && Array.inRange bounds pos)
+            (concatMap (goSteps currentPos currentDist) allowedDirections)
+    insertSmaller k v map =
+      let prevV = Maybe.fromMaybe bigNumber $ Map.lookup k map
+       in Map.insert k (min v prevV) map
+    dijkstra :: Distances -> Visited -> Tentative -> Distances
+    dijkstra distances _ [] = distances
+    dijkstra distances0 visited0 ((currentNode, currentDist):tentative0) =
+      let distances1 = insertSmaller currentNode currentDist distances0
+          visited1 = Set.insert currentNode visited0
+          newTentativeNeighbors =
+            reachableNeighbors visited1 currentDist currentNode
+          tentative1 = foldl qSetInsert tentative0 newTentativeNeighbors
+       in dijkstra distances1 visited1 tentative1
 
 main = do
-  input <- readFile "input.txt"
-  let cityMap = parseInput input
+  cityMap <- parseCityMap <$> readFile "input.txt"
   putStrLn "Part 1"
-  print $ solve 1 3 cityMap
+  print $ leastHeatLoss 1 3 cityMap
   putStrLn "Part 2"
-  print $ solve 4 10 cityMap
+  print $ leastHeatLoss 4 10 cityMap
